@@ -1,8 +1,7 @@
 #include <Arduino.h>
 #include <U8g2lib.h>
 #include <ESP8266WiFi.h>
-#include <ESPAsyncTCP.h>
-#include <ESPAsyncWebServer.h>
+#include <ESP8266WebServer.h>
 #include <SoftwareSerial.h>
 #include <PZEM004Tv30.h>
 
@@ -14,8 +13,7 @@ U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
 const char* ssid = "Ashera's-Net";
 const char* password = "07190008";
 
-AsyncWebServer server(80);
-AsyncEventSource events("/events");
+ESP8266WebServer server(80);
 
 SoftwareSerial pzemSerial(D5, D6); // RX, TX
 PZEM004Tv30 pzem(pzemSerial);
@@ -42,45 +40,15 @@ void draw_display(void);
 void system_debug(void);
 void stream_data(void);
 
-void handle_root(AsyncWebServerRequest *request);
-void handle_api(AsyncWebServerRequest *request);
+void handleRoot();
+void handleData();
 
 void setup() {
     start_sequence();
-
-    pinMode(SW1, INPUT_PULLUP);
-
-    wifi_setup();
-
-    server.on("/", HTTP_GET, handle_root);
-    server.on("/api", HTTP_GET, handle_api);
-
-    events.onConnect([](AsyncEventSourceClient *client){
-
-    #ifdef DEBUG
-        Serial.println("Client connected to event stream");
-    #endif
-
-    });
-
-    server.addHandler(&events);
-
-    server.begin();
-
-    #ifdef DEBUG_MODE
-        Serial.println("Webserver started");
-    #endif
 }
 
 void loop() {
-    static uint32_t lastStream = 0;
-
-    if(millis() - lastStream >= 1000){
-
-        lastStream = millis();
-
-        stream_data();
-    }
+    server.handleClient();
 
     if (millis() - lastSensorRead >= 1000) {
 
@@ -144,12 +112,11 @@ void wifi_setup(){
     #endif
 
     while (WiFi.status() != WL_CONNECTED) {
-
         delay(500);
 
-    #ifdef DEBUG_MODE
+        #ifdef DEBUG_MODE
             Serial.print(".");
-    #endif
+        #endif
     }
 
     #ifdef DEBUG_MODE
@@ -157,6 +124,26 @@ void wifi_setup(){
         Serial.println("Connected!");
         Serial.println(WiFi.localIP());
     #endif
+
+    server.on("/", handleRoot);
+    server.on("/data", handleData);
+
+    server.begin();
+
+    String ip = WiFi.localIP().toString();
+
+    u8g2.clearBuffer();
+
+    u8g2.setFont(u8g2_font_profont17_tr);
+    u8g2.drawStr(24, 20, "CONNECTED");
+    u8g2.drawLine(0, 24, 127, 24);
+    u8g2.setFont(u8g2_font_profont17_tr);
+    u8g2.drawStr(3, 40, "IP ADDRESS:");
+    u8g2.drawStr(3, 55, ip.c_str());
+
+    u8g2.sendBuffer();
+
+    delay(2000);
 }
 
 void read_sensor(){
@@ -345,62 +332,15 @@ void system_debug(){
     estimated_cost = energy_consumption * electricity_rate;
 }
 
-String uptime_string(){
-
-    uint32_t sec = millis() / 1000;
-
-    uint16_t days = sec / 86400;
-    sec %= 86400;
-
-    uint8_t hours = sec / 3600;
-    sec %= 3600;
-
-    uint8_t mins = sec / 60;
-    sec %= 60;
-
-    char buf[32];
-
-    snprintf(buf,
-             sizeof(buf),
-             "%ud %02uh %02um %02us",
-             days,
-             hours,
-             mins,
-             sec);
-
-    return String(buf);
-}
-
-void stream_data(){
-
-    String json = "{";
-
-    json += "\"voltage\":" + String(voltage,1) + ",";
-    json += "\"current\":" + String(current,2) + ",";
-    json += "\"power\":" + String(active_power,0) + ",";
-    json += "\"energy\":" + String(energy_consumption,3) + ",";
-    json += "\"frequency\":" + String(frequency,1) + ",";
-    json += "\"pf\":" + String(power_factor,2) + ",";
-    json += "\"cost\":" + String(estimated_cost,0) + ",";
-    json += "\"ip\":\"" + WiFi.localIP().toString() + "\",";
-    json += "\"rssi\":" + String(WiFi.RSSI()) + ",";
-    json += "\"uptime\":\"" + uptime_string() + "\"";
-
-    json += "}";
-
-    events.send(json.c_str(), "update", millis());
-}
-
-void handle_root(AsyncWebServerRequest *request){
+void handleRoot() {
 
     String html = R"rawliteral(
 
 <!DOCTYPE html>
 <html>
-
 <head>
-
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>IoT Power Monitor</title>
 
@@ -414,71 +354,83 @@ body{
     padding:20px;
 }
 
-h1{
-    text-align:center;
-}
-
-.grid{
-    display:grid;
-    grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
-    gap:10px;
+.container{
+    max-width:700px;
+    margin:auto;
 }
 
 .card{
-    background:#1c1c1c;
-    border-radius:12px;
+    background:#1b1b1b;
     padding:15px;
+    margin-bottom:12px;
+    border-radius:12px;
+    box-shadow:0 0 10px rgba(0,0,0,0.4);
+}
+
+.title{
+    font-size:28px;
+    margin-bottom:20px;
+    text-align:center;
 }
 
 .label{
     font-size:14px;
-    opacity:0.7;
+    color:#aaa;
 }
 
 .value{
     font-size:28px;
-    margin-top:10px;
+    font-weight:bold;
 }
 
-.footer{
-    margin-top:20px;
-    opacity:0.7;
-    font-size:14px;
+.grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+}
+
+@media(max-width:600px){
+    .grid{
+        grid-template-columns:1fr;
+    }
 }
 
 </style>
-
 </head>
 
 <body>
 
-<h1>IoT Power Monitor</h1>
+<div class="container">
+
+<div class="title">
+IoT POWER MONITOR
+</div>
 
 <div class="grid">
 
 <div class="card">
 <div class="label">Voltage</div>
-<div class="value" id="voltage">0</div>
+<div class="value" id="voltage">0 V</div>
 </div>
 
 <div class="card">
 <div class="label">Current</div>
-<div class="value" id="current">0</div>
+<div class="value" id="current">0 A</div>
 </div>
 
 <div class="card">
 <div class="label">Power</div>
-<div class="value" id="power">0</div>
+<div class="value" id="power">0 W</div>
 </div>
 
 <div class="card">
 <div class="label">Energy</div>
-<div class="value" id="energy">0</div>
+<div class="value" id="energy">0 kWh</div>
 </div>
 
 <div class="card">
 <div class="label">Frequency</div>
-<div class="value" id="frequency">0</div>
+<div class="value" id="frequency">0 Hz</div>
 </div>
 
 <div class="card">
@@ -487,67 +439,76 @@ h1{
 </div>
 
 <div class="card">
-<div class="label">Estimated Bill</div>
-<div class="value" id="cost">0</div>
+<div class="label">Estimated Cost</div>
+<div class="value" id="cost">Rp 0</div>
 </div>
 
 <div class="card">
-<div class="label">WiFi RSSI</div>
-<div class="value" id="rssi">0</div>
+<div class="label">Uptime</div>
+<div class="value" id="uptime">0</div>
 </div>
 
 </div>
-
-<div class="footer">
-
-<div>IP: <span id="ip"></span></div>
-<div>Uptime: <span id="uptime"></span></div>
 
 </div>
 
 <script>
 
-if (!!window.EventSource) {
+function formatUptime(seconds){
 
-    var source = new EventSource('/events');
+    seconds = Number(seconds);
 
-    source.addEventListener('update', function(e) {
+    const days = Math.floor(seconds / 86400);
+    seconds %= 86400;
 
-        var data = JSON.parse(e.data);
+    const hours = Math.floor(seconds / 3600);
+    seconds %= 3600;
 
-        document.getElementById("voltage").innerHTML =
-            data.voltage + " V";
+    const minutes = Math.floor(seconds / 60);
+    seconds %= 60;
 
-        document.getElementById("current").innerHTML =
-            data.current + " A";
+    return `${days}d ${hours}h ${minutes}m ${seconds}s`;
+}
 
-        document.getElementById("power").innerHTML =
-            data.power + " W";
+async function updateData(){
 
-        document.getElementById("energy").innerHTML =
-            data.energy + " kWh";
+    try{
 
-        document.getElementById("frequency").innerHTML =
-            data.frequency + " Hz";
+        const response = await fetch('/data');
+        const data = await response.json();
 
-        document.getElementById("pf").innerHTML =
+        document.getElementById('voltage').innerHTML =
+            data.voltage + ' V';
+
+        document.getElementById('current').innerHTML =
+            data.current + ' A';
+
+        document.getElementById('power').innerHTML =
+            data.power + ' W';
+
+        document.getElementById('energy').innerHTML =
+            data.energy + ' kWh';
+
+        document.getElementById('frequency').innerHTML =
+            data.frequency + ' Hz';
+
+        document.getElementById('pf').innerHTML =
             data.pf;
 
-        document.getElementById("cost").innerHTML =
-            "Rp " + data.cost;
+        document.getElementById('cost').innerHTML =
+            'Rp ' + data.cost;
 
-        document.getElementById("rssi").innerHTML =
-            data.rssi + " dBm";
+        document.getElementById('uptime').innerHTML =
+            formatUptime(Number(data.uptime));
 
-        document.getElementById("ip").innerHTML =
-            data.ip;
-
-        document.getElementById("uptime").innerHTML =
-            data.uptime;
-
-    });
-
+    }catch(e){
+        console.log(e);
+    }
 }
+
+setInterval(updateData, 1000);
+
+updateData();
 
 </script>
 
@@ -556,21 +517,23 @@ if (!!window.EventSource) {
 
 )rawliteral";
 
-    request->send(200, "text/html", html);
+    server.send(200, "text/html", html);
 }
 
-void handle_api(AsyncWebServerRequest *request){
+void handleData() {
 
     String json = "{";
 
-    json += "\"voltage\":" + String(voltage) + ",";
-    json += "\"current\":" + String(current) + ",";
-    json += "\"power\":" + String(active_power) + ",";
-    json += "\"energy\":" + String(energy_consumption) + ",";
-    json += "\"frequency\":" + String(frequency) + ",";
-    json += "\"pf\":" + String(power_factor);
+    json += "\"voltage\":" + String(voltage, 1) + ",";
+    json += "\"current\":" + String(current, 2) + ",";
+    json += "\"power\":" + String(active_power, 1) + ",";
+    json += "\"energy\":" + String(energy_consumption, 3) + ",";
+    json += "\"frequency\":" + String(frequency, 1) + ",";
+    json += "\"pf\":" + String(power_factor, 2) + ",";
+    json += "\"cost\":" + String(estimated_cost, 0) + ",";
+    json += "\"uptime\":" + String(millis() / 1000);
 
     json += "}";
 
-    request->send(200, "application/json", json);
+    server.send(200, "application/json", json);
 }
