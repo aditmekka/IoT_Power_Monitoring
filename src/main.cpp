@@ -339,60 +339,60 @@ void handleRoot() {
 <!DOCTYPE html>
 <html>
 <head>
+
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
 <title>IoT Power Monitor</title>
 
 <style>
 
 body{
-    background:#111;
+    background:#0f172a;
     color:white;
     font-family:Arial;
+    text-align:center;
     margin:0;
     padding:20px;
 }
 
+h1{
+    margin-bottom:30px;
+}
+
 .container{
-    max-width:700px;
-    margin:auto;
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:center;
+    gap:20px;
 }
 
 .card{
-    background:#1b1b1b;
-    padding:15px;
-    margin-bottom:12px;
-    border-radius:12px;
-    box-shadow:0 0 10px rgba(0,0,0,0.4);
-}
-
-.title{
-    font-size:28px;
-    margin-bottom:20px;
-    text-align:center;
+    background:#1e293b;
+    width:250px;
+    padding:20px;
+    border-radius:20px;
+    box-shadow:0 0 20px rgba(0,0,0,0.3);
 }
 
 .label{
-    font-size:14px;
-    color:#aaa;
+    font-size:18px;
+    opacity:0.8;
 }
 
 .value{
-    font-size:28px;
+    font-size:42px;
+    margin-top:10px;
     font-weight:bold;
 }
 
-.grid{
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:12px;
+.unit{
+    font-size:18px;
 }
 
-@media(max-width:600px){
-    .grid{
-        grid-template-columns:1fr;
-    }
+.footer{
+    margin-top:40px;
+    opacity:0.6;
 }
 
 </style>
@@ -400,56 +400,68 @@ body{
 
 <body>
 
+<h1>⚡ IoT Power Monitor</h1>
+
 <div class="container">
 
-<div class="title">
-IoT POWER MONITOR
+    <div class="card">
+        <div class="label">Voltage</div>
+        <div class="value">
+            <span id="voltage">0</span>
+            <span class="unit">V</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="label">Current</div>
+        <div class="value">
+            <span id="current">0</span>
+            <span class="unit">A</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="label">Power</div>
+        <div class="value">
+            <span id="power">0</span>
+            <span class="unit">W</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="label">Energy</div>
+        <div class="value">
+            <span id="energy">0</span>
+            <span class="unit">kWh</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="label">Frequency</div>
+        <div class="value">
+            <span id="frequency">0</span>
+            <span class="unit">Hz</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="label">Power Factor</div>
+        <div class="value">
+            <span id="pf">0</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="label">Estimated Cost</div>
+        <div class="value">
+            Rp <span id="cost">0</span>
+        </div>
+    </div>
+
 </div>
 
-<div class="grid">
-
-<div class="card">
-<div class="label">Voltage</div>
-<div class="value" id="voltage">0 V</div>
-</div>
-
-<div class="card">
-<div class="label">Current</div>
-<div class="value" id="current">0 A</div>
-</div>
-
-<div class="card">
-<div class="label">Power</div>
-<div class="value" id="power">0 W</div>
-</div>
-
-<div class="card">
-<div class="label">Energy</div>
-<div class="value" id="energy">0 kWh</div>
-</div>
-
-<div class="card">
-<div class="label">Frequency</div>
-<div class="value" id="frequency">0 Hz</div>
-</div>
-
-<div class="card">
-<div class="label">Power Factor</div>
-<div class="value" id="pf">0</div>
-</div>
-
-<div class="card">
-<div class="label">Estimated Cost</div>
-<div class="value" id="cost">Rp 0</div>
-</div>
-
-<div class="card">
-<div class="label">Uptime</div>
-<div class="value" id="uptime">0</div>
-</div>
-
-</div>
-
+<div class="footer">
+    Uptime: <span id="uptime">0</span>
 </div>
 
 <script>
@@ -477,28 +489,28 @@ async function updateData(){
         const response = await fetch('/data');
         const data = await response.json();
 
-        document.getElementById('voltage').innerHTML =
-            data.voltage + ' V';
+        document.getElementById('voltage').innerText =
+            data.voltage;
 
-        document.getElementById('current').innerHTML =
-            data.current + ' A';
+        document.getElementById('current').innerText =
+            data.current;
 
-        document.getElementById('power').innerHTML =
-            data.power + ' W';
+        document.getElementById('power').innerText =
+            data.power;
 
-        document.getElementById('energy').innerHTML =
-            data.energy + ' kWh';
+        document.getElementById('energy').innerText =
+            data.energy;
 
-        document.getElementById('frequency').innerHTML =
-            data.frequency + ' Hz';
+        document.getElementById('frequency').innerText =
+            data.frequency;
 
-        document.getElementById('pf').innerHTML =
+        document.getElementById('pf').innerText =
             data.pf;
 
-        document.getElementById('cost').innerHTML =
-            'Rp ' + data.cost;
+        document.getElementById('cost').innerText =
+            data.cost;
 
-        document.getElementById('uptime').innerHTML =
+        document.getElementById('uptime').innerText =
             formatUptime(Number(data.uptime));
 
     }catch(e){
